@@ -17,11 +17,17 @@ const SAMPLE_DATA = [
 ];
 
 let modules = [];
+let currentEnvironment = 'QA';
+let releaseName = 'Release 1.0';
+let statusChart = null;
+let simulationInterval = null;
 
 // --- Initialization ---
 
 document.addEventListener('DOMContentLoaded', () => {
     loadModules();
+    loadReleaseName();
+    initTheme();
     renderDashboard();
     setupEventListeners();
 });
@@ -33,14 +39,29 @@ function loadModules() {
     if (stored) {
         try {
             modules = JSON.parse(stored);
+            // Migration: Assign 'QA' to modules without environment
+            let migrated = false;
+            modules.forEach(m => {
+                if (!m.environment) {
+                    m.environment = 'QA';
+                    migrated = true;
+                }
+            });
+            if (migrated) saveModules();
         } catch (e) {
             console.error('Failed to parse modules', e);
-            modules = [...SAMPLE_DATA];
+            modules = [...SAMPLE_DATA.map(m => ({ ...m, environment: 'QA' }))];
         }
     } else {
-        modules = [...SAMPLE_DATA];
+        modules = [...SAMPLE_DATA.map(m => ({ ...m, environment: 'QA' }))];
         saveModules();
     }
+}
+
+function loadReleaseName() {
+    const stored = localStorage.getItem('qa_dashboard_release_name');
+    if (stored) releaseName = stored;
+    document.getElementById('releaseNameDisplay').textContent = releaseName;
 }
 
 function saveModules() {
@@ -52,6 +73,7 @@ function addModule(module) {
     modules.push({
         ...module,
         id: Date.now().toString(),
+        environment: currentEnvironment,
         lastUpdated: new Date().toISOString()
     });
     saveModules();
@@ -75,13 +97,26 @@ function deleteModule(id) {
 function renderDashboard() {
     renderSummary();
     renderModuleList();
+    updateChart();
+    updateActiveTab();
+}
+
+function updateActiveTab() {
+    document.querySelectorAll('#envTabs .nav-link').forEach(link => {
+        if (link.dataset.env === currentEnvironment) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
 }
 
 function renderSummary() {
-    const total = modules.length;
-    const passed = modules.filter(m => m.status === 'Passed').length;
-    const failed = modules.filter(m => m.status === 'Failed').length;
-    const inProgress = modules.filter(m => ['In Progress', 'Blocked'].includes(m.status)).length;
+    const envModules = modules.filter(m => m.environment === currentEnvironment);
+    const total = envModules.length;
+    const passed = envModules.filter(m => m.status === 'Passed').length;
+    const failed = envModules.filter(m => m.status === 'Failed').length;
+    const inProgress = envModules.filter(m => ['In Progress', 'Blocked'].includes(m.status)).length;
     const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
     const summaryHTML = `
@@ -133,15 +168,58 @@ function renderSummary() {
     document.getElementById('summarySection').innerHTML = summaryHTML;
 }
 
+function updateChart() {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    const envModules = modules.filter(m => m.environment === currentEnvironment);
+    const passed = envModules.filter(m => m.status === 'Passed').length;
+    const failed = envModules.filter(m => m.status === 'Failed').length;
+    const inProgress = envModules.filter(m => m.status === 'In Progress').length;
+    const blocked = envModules.filter(m => m.status === 'Blocked').length;
+
+    const data = {
+        labels: ['Passed', 'Failed', 'In Progress', 'Blocked'],
+        datasets: [{
+            data: [passed, failed, inProgress, blocked],
+            backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
+            borderWidth: 0
+        }]
+    };
+
+    if (statusChart) {
+        statusChart.data = data;
+        statusChart.update();
+    } else {
+        statusChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 12,
+                            usePointStyle: true,
+                        }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+}
+
 function renderModuleList() {
     const filterStatus = document.getElementById('statusFilter').value;
     const searchText = document.getElementById('searchInput').value.toLowerCase();
     const sortBy = document.getElementById('sortBy').value;
 
     let filtered = modules.filter(m => {
+        const matchesEnv = m.environment === currentEnvironment;
         const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
         const matchesSearch = m.name.toLowerCase().includes(searchText);
-        return matchesStatus && matchesSearch;
+        return matchesEnv && matchesStatus && matchesSearch;
     });
 
     // Sorting
@@ -230,6 +308,35 @@ function setupEventListeners() {
     // Export/Import
     document.getElementById('exportBtn').addEventListener('click', handleExport);
     document.getElementById('importFile').addEventListener('change', handleImport);
+
+    // New Features
+    document.getElementById('darkModeToggle').addEventListener('change', toggleDarkMode);
+    document.getElementById('simulateBtn').addEventListener('click', toggleSimulation);
+
+    // Tabs & Release Name
+    document.querySelectorAll('#envTabs .nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentEnvironment = e.target.dataset.env;
+            renderDashboard();
+        });
+    });
+
+    const editReleaseBtn = document.getElementById('editReleaseBtn');
+    if (editReleaseBtn) {
+        editReleaseBtn.addEventListener('click', handleEditReleaseName);
+    }
+
+    const importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    const openImportBtn = document.getElementById('openImportModalBtn');
+    const confirmImportBtn = document.getElementById('confirmImportBtn');
+    const importSourceEnv = document.getElementById('importSourceEnv');
+    const selectAllImport = document.getElementById('selectAllImport');
+
+    if (openImportBtn) openImportBtn.addEventListener('click', openImportModal);
+    if (confirmImportBtn) confirmImportBtn.addEventListener('click', handleImportModules);
+    if (importSourceEnv) importSourceEnv.addEventListener('change', renderImportList);
+    if (selectAllImport) selectAllImport.addEventListener('change', toggleSelectAllImport);
 }
 
 // Expose functions to window for onclick handlers
@@ -270,7 +377,7 @@ function handleSaveModule() {
     const failures = parseInt(document.getElementById('failureCount').value) || 0;
 
     if (!name) {
-        alert('Module name is required');
+        showToast('Module name is required', 'error');
         return;
     }
 
@@ -278,8 +385,10 @@ function handleSaveModule() {
 
     if (id) {
         updateModule(id, moduleData);
+        showToast('Module updated successfully', 'success');
     } else {
         addModule(moduleData);
+        showToast('Module added successfully', 'success');
     }
 
     moduleModal.hide();
@@ -288,6 +397,7 @@ function handleSaveModule() {
 function handleConfirmDelete() {
     if (currentDeleteId) {
         deleteModule(currentDeleteId);
+        showToast('Module deleted successfully', 'success');
         currentDeleteId = null;
         deleteModal.hide();
     }
@@ -317,12 +427,12 @@ function handleImport(event) {
             if (Array.isArray(imported)) {
                 modules = imported;
                 saveModules();
-                alert('Data imported successfully!');
+                showToast('Data imported successfully!', 'success');
             } else {
-                alert('Invalid data format');
+                showToast('Invalid data format', 'error');
             }
         } catch (err) {
-            alert('Error parsing JSON file');
+            showToast('Error parsing JSON file', 'error');
         }
         event.target.value = ''; // Reset input
     };
@@ -358,4 +468,171 @@ window.quickUpdateStatus = function (id, newStatus) {
     }
 
     updateModule(id, { status: newStatus, reason, failures });
+    showToast(`Status updated to ${newStatus}`, 'success');
 };
+
+// --- New Feature Functions ---
+
+function initTheme() {
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+        document.getElementById('darkModeToggle').checked = true;
+    }
+}
+
+function toggleDarkMode(e) {
+    if (e.target.checked) {
+        document.body.classList.add('dark-mode');
+        localStorage.setItem('darkMode', 'true');
+    } else {
+        document.body.classList.remove('dark-mode');
+        localStorage.setItem('darkMode', 'false');
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toastEl = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toastMessage');
+
+    toastBody.textContent = message;
+    toastEl.className = 'toast align-items-center border-0 text-white';
+
+    if (type === 'success') toastEl.classList.add('bg-success');
+    else if (type === 'error') toastEl.classList.add('bg-danger');
+    else toastEl.classList.add('bg-primary');
+
+    const toast = new bootstrap.Toast(toastEl);
+    toast.show();
+}
+
+function toggleSimulation() {
+    const btn = document.getElementById('simulateBtn');
+    if (simulationInterval) {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        btn.innerHTML = '<i class="bi bi-play-circle"></i> Simulate';
+        btn.classList.remove('active');
+        showToast('Simulation stopped');
+    } else {
+        simulationInterval = setInterval(simulateRandomUpdate, 2000);
+        btn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop';
+        btn.classList.add('active');
+        showToast('Simulation started', 'info');
+    }
+}
+
+function simulateRandomUpdate() {
+    const envModules = modules.filter(m => m.environment === currentEnvironment);
+    if (envModules.length === 0) return;
+
+    const randomModule = envModules[Math.floor(Math.random() * envModules.length)];
+    const statuses = ['Passed', 'Failed', 'In Progress', 'Blocked'];
+    const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
+
+    if (randomModule.status !== newStatus) {
+        let updates = { status: newStatus };
+        if (newStatus === 'Failed') {
+            updates.failures = randomModule.failures + 1;
+            updates.reason = 'Simulated failure at ' + new Date().toLocaleTimeString();
+        }
+        updateModule(randomModule.id, updates);
+        showToast(`Simulated: ${randomModule.name} -> ${newStatus}`, 'info');
+    }
+}
+
+function handleEditReleaseName() {
+    const newName = prompt("Enter Release Name:", releaseName);
+    if (newName && newName.trim() !== "") {
+        releaseName = newName.trim();
+        localStorage.setItem('qa_dashboard_release_name', releaseName);
+        document.getElementById('releaseNameDisplay').textContent = releaseName;
+        showToast('Release name updated', 'success');
+    }
+}
+
+// --- Import Logic ---
+
+function openImportModal() {
+    const sourceSelect = document.getElementById('importSourceEnv');
+    const envs = ['QA', 'SAT', 'Prod'];
+
+    sourceSelect.innerHTML = envs
+        .filter(e => e !== currentEnvironment)
+        .map(e => `<option value="${e}">${e}</option>`)
+        .join('');
+
+    renderImportList();
+    const modal = new bootstrap.Modal(document.getElementById('importModal'));
+    modal.show();
+}
+
+function renderImportList() {
+    const sourceEnv = document.getElementById('importSourceEnv').value;
+    const listContainer = document.getElementById('importModuleList');
+    const confirmBtn = document.getElementById('confirmImportBtn');
+
+    // Get modules from source env that are NOT in current env (by name)
+    const sourceModules = modules.filter(m => m.environment === sourceEnv);
+    const currentModuleNames = new Set(modules.filter(m => m.environment === currentEnvironment).map(m => m.name));
+
+    const availableModules = sourceModules.filter(m => !currentModuleNames.has(m.name));
+
+    if (availableModules.length === 0) {
+        listContainer.innerHTML = '<p class="text-muted text-center my-3 small">No new modules to import.</p>';
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    listContainer.innerHTML = availableModules.map(m => `
+        <div class="form-check">
+            <input class="form-check-input import-checkbox" type="checkbox" value="${m.id}" id="import_${m.id}">
+            <label class="form-check-label w-100 cursor-pointer" for="import_${m.id}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>${m.name}</span>
+                    <span class="badge bg-light text-dark border">${m.status}</span>
+                </div>
+            </label>
+        </div>
+    `).join('');
+
+    confirmBtn.disabled = false;
+
+    // Uncheck select all
+    document.getElementById('selectAllImport').checked = false;
+}
+
+function toggleSelectAllImport(e) {
+    const checkboxes = document.querySelectorAll('.import-checkbox');
+    checkboxes.forEach(cb => cb.checked = e.target.checked);
+}
+
+function handleImportModules() {
+    const checkboxes = document.querySelectorAll('.import-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast('Please select at least one module', 'error');
+        return;
+    }
+
+    const sourceEnv = document.getElementById('importSourceEnv').value;
+    let count = 0;
+
+    checkboxes.forEach(cb => {
+        const original = modules.find(m => m.id === cb.value);
+        if (original) {
+            addModule({
+                name: original.name,
+                status: 'In Progress',
+                reason: '',
+                failures: 0
+            });
+            count++;
+        }
+    });
+
+    const modalEl = document.getElementById('importModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+
+    showToast(`Successfully imported ${count} modules from ${sourceEnv}`, 'success');
+}

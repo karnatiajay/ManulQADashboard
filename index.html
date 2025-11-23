@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +15,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body class="bg-light">
 
     <!-- Navbar -->
@@ -24,6 +28,13 @@
                 <i class="bi bi-speedometer2 me-2"></i>QA Dashboard
             </a>
             <div class="d-flex align-items-center">
+                <div class="form-check form-switch me-3 text-light">
+                    <input class="form-check-input" type="checkbox" id="darkModeToggle">
+                    <label class="form-check-label" for="darkModeToggle"><i class="bi bi-moon-stars"></i></label>
+                </div>
+                <button class="btn btn-outline-light btn-sm me-2" id="simulateBtn" title="Simulate Updates">
+                    <i class="bi bi-play-circle"></i> Simulate
+                </button>
                 <button class="btn btn-outline-light btn-sm me-2" id="exportBtn" title="Export Data">
                     <i class="bi bi-download"></i> Export
                 </button>
@@ -35,20 +46,57 @@
         </div>
     </nav>
 
-    <div class="container-fluid px-4 py-4">
+    <div class="container-fluid px-4 py-3">
+        <!-- Release Header & Tabs -->
+        <div class="d-flex justify-content-between align-items-end mb-3">
+            <div>
+                <div class="d-flex align-items-center mb-2">
+                    <h4 class="fw-bold mb-0 me-2" id="releaseNameDisplay">Release 1.0</h4>
+                    <button class="btn btn-link btn-sm p-0 text-muted" id="editReleaseBtn" title="Edit Release Name">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                </div>
+                <ul class="nav nav-pills" id="envTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-env="QA">QA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-env="SAT">SAT</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-env="Prod">Prod</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Summary Section -->
-        <div class="row g-3 mb-4" id="summarySection">
-            <!-- Summary cards will be injected here -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-9">
+                <div class="row g-3" id="summarySection">
+                    <!-- Summary cards will be injected here -->
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="card shadow-sm border-0 h-100 p-2">
+                    <h6 class="text-muted text-uppercase fw-bold text-xs mb-2 text-center">Status Distribution</h6>
+                    <div class="chart-container" style="position: relative; height: 100px; width: 100%;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Controls Section -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-body p-3">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body p-2">
                 <div class="row g-3 align-items-center">
                     <div class="col-md-4">
                         <div class="input-group">
-                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" class="form-control border-start-0 ps-0" id="searchInput" placeholder="Search modules...">
+                            <span class="input-group-text bg-white border-end-0"><i
+                                    class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0" id="searchInput"
+                                placeholder="Search modules...">
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -69,9 +117,16 @@
                         </select>
                     </div>
                     <div class="col-md-2 text-end">
-                        <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#moduleModal" id="addModuleBtn">
-                            <i class="bi bi-plus-lg me-1"></i> Add Module
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-primary w-100" id="openImportModalBtn"
+                                title="Import from other env">
+                                <i class="bi bi-arrow-repeat"></i> Import
+                            </button>
+                            <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#moduleModal"
+                                id="addModuleBtn">
+                                <i class="bi bi-plus-lg"></i> Add
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -165,9 +220,61 @@
         </div>
     </div>
 
+    <!-- Import Modules Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Import Modules</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="importSourceEnv" class="form-label">Source Environment</label>
+                        <select class="form-select" id="importSourceEnv">
+                            <!-- Options injected by JS -->
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Select Modules to Import</label>
+                        <div class="border rounded p-2 bg-light" style="max-height: 250px; overflow-y: auto;"
+                            id="importModuleList">
+                            <!-- Checkboxes injected by JS -->
+                            <p class="text-muted text-center my-3 small">Select a source environment to see modules.</p>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="selectAllImport">
+                        <label class="form-check-label small" for="selectAllImport">Select All</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmImportBtn" disabled>Import
+                        Selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive"
+            aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastMessage">
+                    <!-- Message here -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App JS -->
     <script src="app.js"></script>
 </body>
+
 </html>
