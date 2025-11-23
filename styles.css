@@ -1,0 +1,113 @@
+:root {
+    --primary-color: #4f46e5;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --info-color: #3b82f6;
+    --dark-bg: #1f2937;
+    --light-bg: #f3f4f6;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--light-bg);
+    color: #374151;
+}
+
+/* Navbar */
+.navbar {
+    background: linear-gradient(to right, #111827, #374151) !important;
+}
+
+/* Cards */
+.card {
+    border-radius: 0.75rem;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Table */
+.table thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-bottom-width: 1px;
+}
+
+.table tbody tr {
+    transition: background-color 0.15s;
+}
+
+.table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Status Badges */
+.badge-status {
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 600;
+    border-radius: 9999px;
+}
+
+.status-passed {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.status-failed {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.status-inprogress {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.status-blocked {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #4338ca;
+    border-color: #4338ca;
+}
+
+/* Utils */
+.text-xs {
+    font-size: 0.75rem;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* KPI Cards */
+.kpi-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1.5rem;
+}
+
+.kpi-passed .kpi-icon { background-color: #d1fae5; color: #10b981; }
+.kpi-failed .kpi-icon { background-color: #fee2e2; color: #ef4444; }
+.kpi-total .kpi-icon { background-color: #e0e7ff; color: #4f46e5; }
+.kpi-rate .kpi-icon { background-color: #dbeafe; color: #3b82f6; }
