@@ -8,12 +8,12 @@ const STORAGE_KEY = 'qa_dashboard_modules';
 
 // Default sample data
 const SAMPLE_DATA = [
-    { id: '1', name: 'Authentication Service', status: 'Passed', reason: '', failures: 0, lastUpdated: new Date().toISOString() },
-    { id: '2', name: 'Payment Gateway', status: 'Failed', reason: 'Timeout on API response', failures: 5, lastUpdated: new Date(Date.now() - 86400000).toISOString() },
-    { id: '3', name: 'User Profile', status: 'In Progress', reason: 'Pending UI tests', failures: 0, lastUpdated: new Date(Date.now() - 3600000).toISOString() },
-    { id: '4', name: 'Search Engine', status: 'Passed', reason: '', failures: 1, lastUpdated: new Date().toISOString() },
-    { id: '5', name: 'Notifications', status: 'Blocked', reason: 'Waiting for backend fix', failures: 0, lastUpdated: new Date(Date.now() - 172800000).toISOString() },
-    { id: '6', name: 'Reporting Module', status: 'Failed', reason: 'Calculation error in totals', failures: 3, lastUpdated: new Date().toISOString() }
+    { id: '1', name: 'Authentication Service', status: 'Passed', reason: '', failures: 0, lastUpdated: new Date().toISOString(), channels: { voice: true, sms: true, chat: true, email: true } },
+    { id: '2', name: 'Payment Gateway', status: 'Failed', reason: 'Timeout on API response', failures: 5, lastUpdated: new Date(Date.now() - 86400000).toISOString(), channels: { voice: true, sms: false, chat: true, email: true } },
+    { id: '3', name: 'User Profile', status: 'In Progress', reason: 'Pending UI tests', failures: 0, lastUpdated: new Date(Date.now() - 3600000).toISOString(), channels: { voice: true, sms: true, chat: true, email: true } },
+    { id: '4', name: 'Search Engine', status: 'Passed', reason: '', failures: 1, lastUpdated: new Date().toISOString(), channels: { voice: true, sms: true, chat: true, email: true } },
+    { id: '5', name: 'Notifications', status: 'Blocked', reason: 'Waiting for backend fix', failures: 0, lastUpdated: new Date(Date.now() - 172800000).toISOString(), channels: { voice: false, sms: false, chat: false, email: false } },
+    { id: '6', name: 'Reporting Module', status: 'Failed', reason: 'Calculation error in totals', failures: 3, lastUpdated: new Date().toISOString(), channels: { voice: true, sms: true, chat: false, email: true } }
 ];
 
 let modules = [];
@@ -46,6 +46,10 @@ function loadModules() {
                     m.environment = 'QA';
                     migrated = true;
                 }
+                if (!m.channels) {
+                    m.channels = { voice: true, sms: true, chat: true, email: true };
+                    migrated = true;
+                }
             });
             if (migrated) saveModules();
         } catch (e) {
@@ -74,7 +78,8 @@ function addModule(module) {
         ...module,
         id: Date.now().toString(),
         environment: currentEnvironment,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        channels: { voice: true, sms: true, chat: true, email: true }
     });
     saveModules();
 }
@@ -244,6 +249,7 @@ function renderModuleList() {
     tbody.innerHTML = filtered.map(m => `
         <tr>
             <td class="ps-4 fw-medium">${m.name}</td>
+            <td>${renderChannelPills(m)}</td>
             <td>
                 <div class="dropdown">
                     <button class="btn btn-sm p-0 border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -289,6 +295,34 @@ function formatDate(isoString) {
     const date = new Date(isoString);
     return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+function renderChannelPills(module) {
+    const channels = ['voice', 'sms', 'chat', 'email'];
+    return `<div class="d-flex gap-1">
+        ${channels.map(ch => {
+        const isActive = module.channels && module.channels[ch];
+        const colorClass = isActive ? 'status-passed' : 'status-failed';
+        const icon = ch === 'voice' ? 'bi-mic' :
+            ch === 'sms' ? 'bi-chat-left-text' :
+                ch === 'chat' ? 'bi-chat-dots' : 'bi-envelope';
+        return `
+                <span class="badge badge-status ${colorClass} cursor-pointer" 
+                      onclick="toggleChannelStatus('${module.id}', '${ch}')" 
+                      title="Toggle ${ch} status" style="cursor: pointer; user-select: none;">
+                    <i class="bi ${icon}"></i> ${ch.charAt(0).toUpperCase() + ch.slice(1)}
+                </span>
+            `;
+    }).join('')}
+    </div>`;
+}
+
+window.toggleChannelStatus = function (moduleId, channel) {
+    const module = modules.find(m => m.id === moduleId);
+    if (module) {
+        if (!module.channels) module.channels = { voice: true, sms: true, chat: true, email: true };
+        module.channels[channel] = !module.channels[channel];
+        updateModule(moduleId, { channels: module.channels });
+    }
+};
 
 // --- Event Listeners & Modal Handling ---
 
